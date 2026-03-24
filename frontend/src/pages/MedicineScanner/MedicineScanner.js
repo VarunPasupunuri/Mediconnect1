@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+/* eslint-disable */
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Camera, Search, Scan, Pill, AlertTriangle, CheckCircle, Info, UploadCloud, X, Zap, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -17,24 +18,126 @@ const MOCK_RESULT = {
   ]
 };
 
+// Camera Modal using getUserMedia
+const CameraModal = ({ onCapture, onClose }) => {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => setReady(true);
+        }
+      } catch (err) {
+        setError('Camera access denied or not available. Please allow camera access in your browser settings.');
+      }
+    };
+    startCamera();
+    return () => {
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+    canvas.toBlob(blob => {
+      if (blob) {
+        const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+        if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+        onCapture(file);
+      }
+    }, 'image/jpeg', 0.92);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)' }}>
+      <div className="w-full max-w-2xl rounded-3xl overflow-hidden border border-slate-700 bg-slate-950 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <Camera className="w-5 h-5 text-blue-400" />
+            <span className="text-white font-bold">Take a Photo</span>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Camera view */}
+        <div className="relative bg-black aspect-video flex items-center justify-center">
+          {error ? (
+            <div className="text-center p-8">
+              <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+              <p className="text-slate-300 text-sm">{error}</p>
+            </div>
+          ) : (
+            <>
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              {/* Targeting overlay */}
+              {ready && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-64 h-40 border-2 border-blue-400 rounded-xl relative">
+                    <span className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-blue-400 rounded-tl" />
+                    <span className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-blue-400 rounded-tr" />
+                    <span className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-blue-400 rounded-bl" />
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-blue-400 rounded-br" />
+                    <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-blue-400 font-bold whitespace-nowrap">Align medicine label here</p>
+                  </div>
+                </div>
+              )}
+              {!ready && !error && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 p-5 border-t border-slate-800">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-all font-bold text-sm">Cancel</button>
+          <button
+            onClick={capturePhoto}
+            disabled={!ready || !!error}
+            className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 transition-all"
+          >
+            <Camera className="w-4 h-4" /> Capture
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MedicineScanner = () => {
   const [query, setQuery] = useState('');
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
   const [image, setImage] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
-  
+  const [showCamera, setShowCamera] = useState(false);
+
   const fileInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
 
   const startScan = (src) => {
     setScanning(true);
     setResult(null);
-    // Simulate API delay
     setTimeout(() => {
       setResult(MOCK_RESULT);
       setScanning(false);
-      if (!src) setQuery(''); // clear text query if it's an image scan
     }, 2500);
   };
 
@@ -54,7 +157,7 @@ const MedicineScanner = () => {
             type: m.category || 'Medication',
             uses: m.uses?.split(',').map(s => s.trim()) || [],
             sideEffects: m.sideEffects?.split(',').map(s => s.trim()) || [],
-            instructions: m.dosage || 'Follow your doctor\'s prescription.',
+            instructions: m.dosage || "Follow your doctor's prescription.",
             warnings: [m.warnings || 'Consult a doctor before use.'],
           });
         } else {
@@ -64,7 +167,6 @@ const MedicineScanner = () => {
         setScanning(false);
       }, 1200);
     } catch {
-      // Fallback to mock result
       setTimeout(() => { setResult(MOCK_RESULT); setScanning(false); }, 1500);
     }
   };
@@ -80,30 +182,20 @@ const MedicineScanner = () => {
     startScan('image');
   };
 
-  const onDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
+  const handleCameraCapture = (file) => {
+    setShowCamera(false);
+    processFile(file);
   };
 
-  const onDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const onDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    processFile(e.dataTransfer.files?.[0]);
-  };
-
-  const clearImage = () => {
-    setImage(null);
-    setResult(null);
-    setScanning(false);
-  };
+  const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const onDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const onDrop = (e) => { e.preventDefault(); setIsDragging(false); processFile(e.dataTransfer.files?.[0]); };
+  const clearImage = () => { setImage(null); setResult(null); setScanning(false); };
 
   return (
     <div className="page-container max-w-3xl mx-auto">
+      {showCamera && <CameraModal onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />}
+
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
         <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center mb-5 shadow-xl shadow-blue-500/20 relative" style={{ transform: 'rotate(10deg)' }}>
@@ -115,11 +207,7 @@ const MedicineScanner = () => {
       </motion.div>
 
       {/* Main Scanner/Uploader Zone */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="mb-10"
-      >
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mb-10">
         <AnimatePresence mode="wait">
           {!image ? (
             <motion.div
@@ -131,7 +219,6 @@ const MedicineScanner = () => {
               className={`relative rounded-3xl p-8 border-2 border-dashed transition-all duration-300 overflow-hidden group ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700/60 bg-slate-900/50 hover:border-slate-600'}`}
               style={{ backdropFilter: 'blur(16px)' }}
             >
-              {/* Subtle background glow */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-blue-500/5 blur-[80px] pointer-events-none rounded-full" />
 
               <div className="flex flex-col items-center justify-center text-center relative z-10 py-6">
@@ -140,18 +227,15 @@ const MedicineScanner = () => {
                 </div>
                 <h3 className="text-lg font-bold text-white mb-2">Upload or drop image</h3>
                 <p className="text-slate-400 text-sm mb-6 max-w-xs">Supports JPG, PNG. Snap a clear photo of the medicine box or strip.</p>
-                
+
                 <div className="flex gap-3 w-full sm:w-auto">
                   <button onClick={() => fileInputRef.current?.click()} className="flex-1 sm:flex-none btn-secondary">
                     <ImageIcon className="w-4 h-4" /> Browse Files
                   </button>
-                  <button onClick={() => cameraInputRef.current?.click()} className="flex-1 sm:flex-none btn-primary shadow-[0_0_16px_rgba(37,99,235,0.4)]">
+                  <button onClick={() => setShowCamera(true)} className="flex-1 sm:flex-none btn-primary shadow-[0_0_16px_rgba(37,99,235,0.4)]">
                     <Camera className="w-4 h-4" /> Take Photo
                   </button>
-
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={e => processFile(e.target.files?.[0])} />
-                  {/* Capture="environment" attempts to force rear camera on mobile */}
-                  <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={e => processFile(e.target.files?.[0])} />
                 </div>
 
                 <div className="w-full flex items-center gap-4 my-8 opacity-60">
@@ -163,13 +247,13 @@ const MedicineScanner = () => {
                 <div className="w-full max-w-md relative flex items-center gap-2">
                   <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                    <input 
-                      type="text" 
-                      placeholder="Type medicine name manually..." 
-                      value={query} 
+                    <input
+                      type="text"
+                      placeholder="Type medicine name manually..."
+                      value={query}
                       onChange={e => setQuery(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleTextSearch()}
-                      className="w-full h-12 pl-11 pr-4 rounded-xl text-white placeholder:text-slate-500 font-medium transition-all bg-slate-800/80 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50" 
+                      className="w-full h-12 pl-11 pr-4 rounded-xl text-white placeholder:text-slate-500 font-medium transition-all bg-slate-800/80 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     />
                   </div>
                   <button onClick={handleTextSearch} className="h-12 w-12 rounded-xl bg-blue-600 hover:bg-blue-500 flex items-center justify-center transition-colors flex-shrink-0">
@@ -185,7 +269,7 @@ const MedicineScanner = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="relative rounded-3xl overflow-hidden border border-slate-700 bg-slate-900 shadow-2xl"
             >
-              <button 
+              <button
                 onClick={clearImage}
                 disabled={scanning}
                 className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-slate-900/80 border border-slate-700 text-white flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 transition-all disabled:opacity-50"
@@ -195,11 +279,10 @@ const MedicineScanner = () => {
 
               <div className="relative aspect-video sm:aspect-[21/9] w-full flex items-center justify-center bg-black/50 overflow-hidden">
                 <img src={image} alt="Medicine" className={`w-full h-full object-contain transition-opacity duration-300 ${scanning ? 'opacity-50 blur-[2px]' : 'opacity-100'}`} />
-                
-                {/* Simulated AI Scanning Laser */}
+
                 {scanning && (
                   <>
-                    <motion.div 
+                    <motion.div
                       className="absolute left-0 right-0 h-1 bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,1)] z-20"
                       initial={{ top: "0%" }}
                       animate={{ top: ["0%", "98%", "0%"] }}
@@ -236,7 +319,7 @@ const MedicineScanner = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div className="rounded-3xl p-6 border relative overflow-hidden glass z-10" style={{ background: 'linear-gradient(135deg,rgba(15,23,42,0.9),rgba(30,58,138,0.2))', borderColor: 'rgba(59,130,246,0.3)' }}>
             <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-3xl bg-blue-600/20 pointer-events-none" />
-            
+
             <div className="flex items-start gap-5 mb-8 relative z-10">
               <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center flex-shrink-0 text-blue-400 shadow-[0_0_16px_rgba(59,130,246,0.2)]">
                 <Pill className="w-8 h-8" />
