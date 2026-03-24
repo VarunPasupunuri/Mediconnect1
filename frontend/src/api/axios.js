@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'https://mediconnect1-diiu.onrender.com/api', // Explicitly connected to live Render backend
+  baseURL: process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api', 
 });
 
 // Auto-attach JWT token to every request

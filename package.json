@@ -1,0 +1,9 @@
+{
+  "name": "mediconnect-root",
+  "version": "1.0.0",
+  "description": "Unified MediConnect Deployment",
+  "scripts": {
+    "start": "node backend/server.js",
+    "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend"
+  }
+}

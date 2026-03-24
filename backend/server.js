@@ -64,10 +64,21 @@ app.use('/api/symptom-checker', require('./routes/symptomRoutes'));
 app.use('/api/diet-plan', require('./routes/dietRoutes'));
 app.use('/api/medicine-scan', require('./routes/medicineRoutes'));
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'MediConnect API is running', timestamp: new Date() });
-});
+// Serve frontend in production
+const _dirname = path.resolve();
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(_dirname, 'frontend/build')));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(_dirname, 'frontend', 'build', 'index.html'));
+  });
+} else {
+  // Health check
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'MediConnect API is running', timestamp: new Date() });
+  });
+}
 
 // Global error handler
 app.use((err, req, res, next) => {
