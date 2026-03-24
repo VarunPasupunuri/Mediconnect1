@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: __dirname + '/.env' });
 
 // Global Fallback State (Mock DB)
 global.dbConnected = false;
@@ -69,7 +69,7 @@ const frontendBuildPath = path.join(__dirname, '../frontend/build');
 
 if (fs.existsSync(frontendBuildPath)) {
   app.use(express.static(frontendBuildPath));
-  
+
   app.get('*', (req, res) => {
     res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
