@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Camera, Search, Scan, Pill, AlertTriangle, CheckCircle, Info, UploadCloud, X, Zap, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import API from '../../api/axios';
 
 const MOCK_RESULT = {
   name: "Amoxicillin 500mg",
@@ -37,10 +38,35 @@ const MedicineScanner = () => {
     }, 2500);
   };
 
-  const handleTextSearch = () => {
+  const handleTextSearch = async () => {
     if (!query) return toast.error('Enter a medicine name');
     setImage(null);
-    startScan('text');
+    setScanning(true);
+    setResult(null);
+    try {
+      const { data } = await API.post('/medicine-scan', { medicineName: query });
+      setTimeout(() => {
+        if (data.success && data.medicine) {
+          const m = data.medicine;
+          setResult({
+            name: m.name.charAt(0).toUpperCase() + m.name.slice(1),
+            genericName: m.aliases?.join(', ') || m.name,
+            type: m.category || 'Medication',
+            uses: m.uses?.split(',').map(s => s.trim()) || [],
+            sideEffects: m.sideEffects?.split(',').map(s => s.trim()) || [],
+            instructions: m.dosage || 'Follow your doctor\'s prescription.',
+            warnings: [m.warnings || 'Consult a doctor before use.'],
+          });
+        } else {
+          toast.error(data.message || 'Medicine not found');
+          setResult(null);
+        }
+        setScanning(false);
+      }, 1200);
+    } catch {
+      // Fallback to mock result
+      setTimeout(() => { setResult(MOCK_RESULT); setScanning(false); }, 1500);
+    }
   };
 
   const processFile = (file) => {

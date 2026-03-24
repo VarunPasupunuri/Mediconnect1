@@ -1,5 +1,6 @@
 /* eslint-disable */
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import API from '../../api/axios';
 import toast from 'react-hot-toast';
 import { Activity, Search, AlertTriangle, Stethoscope, ChevronRight, X, Bot, Sparkles, Zap } from 'lucide-react';
