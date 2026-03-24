@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const path = require('path');
+const fs = require('fs');
 
 // Load environment variables
 dotenv.config();
@@ -64,17 +65,19 @@ app.use('/api/symptom-checker', require('./routes/symptomRoutes'));
 app.use('/api/diet-plan', require('./routes/dietRoutes'));
 app.use('/api/medicine-scan', require('./routes/medicineRoutes'));
 
-// Serve frontend in production
-const _dirname = path.resolve();
+const frontendBuildPath = path.join(__dirname, '../frontend/build');
 
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(_dirname, 'frontend/build')));
-
+if (fs.existsSync(frontendBuildPath)) {
+  app.use(express.static(frontendBuildPath));
+  
   app.get('*', (req, res) => {
-    res.sendFile(path.resolve(_dirname, 'frontend', 'build', 'index.html'));
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
 } else {
-  // Health check
+  // Health check for development or when build is missing
+  app.get('/', (req, res) => {
+    res.json({ status: 'MediConnect API is running (Frontend build not found locally)' });
+  });
   app.get('/api/health', (req, res) => {
     res.json({ status: 'MediConnect API is running', timestamp: new Date() });
   });
