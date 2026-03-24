@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 5000;
 mongoose.set('bufferCommands', false); // Fail fast if DB disconnected
 mongoose
   .connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mediconnect', {
-    serverSelectionTimeoutMS: 3000 // 3 seconds timeout
+    serverSelectionTimeoutMS: 10000 // 10 seconds timeout for slower networks
   })
   .then(() => {
     console.log('✅ MongoDB connected');
